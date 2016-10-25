@@ -3,6 +3,6 @@ Materials and scripts for deep learning certificate taught by Jeremy Howard: htt
 
 ## Links
 
-*[Forum](http://forums.fast.ai/)
-*[Wiki](http://wiki.fast.ai/index.php/Main_Page)
-*[Files](http://www.platform.ai/files/)
+* [Forum](http://forums.fast.ai/)
+* [Wiki](http://wiki.fast.ai/index.php/Main_Page)
+* [Files](http://www.platform.ai/files/)
