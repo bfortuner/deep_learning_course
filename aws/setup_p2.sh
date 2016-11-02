@@ -26,3 +26,4 @@ echo subnetId=$subnetId
 echo instanceId=$instanceId
 echo instanceUrl=$instanceUrl
 echo Connect: ssh -i ~/.ssh/aws-key.pem ubuntu@$instanceUrl
+
