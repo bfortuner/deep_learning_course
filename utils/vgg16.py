@@ -80,9 +80,9 @@ class Vgg16():
         model.load_weights(get_file(fname, self.FILE_PATH+fname, cache_subdir='models'))
 
 
-    def get_batches(self, path, gen=image.ImageDataGenerator(), shuffle=True, batch_size=8):
+    def get_batches(self, path, gen=image.ImageDataGenerator(), shuffle=True, batch_size=8, class_mode='categorical'):
         return gen.flow_from_directory(path, target_size=(224,224),
-                class_mode='categorical', shuffle=shuffle, batch_size=batch_size)
+                class_mode=class_mode, shuffle=shuffle, batch_size=batch_size)
 
 
     def finetune(self, batches):
@@ -94,7 +94,13 @@ class Vgg16():
         model.compile(optimizer=RMSprop(lr=0.1),
                 loss='categorical_crossentropy', metrics=['accuracy'])
 
+
     def fit(self, batches, val_batches, nb_epoch=1):
         self.model.fit_generator(batches, samples_per_epoch=batches.nb_sample, nb_epoch=nb_epoch,
                 validation_data=val_batches, nb_val_samples=val_batches.nb_sample)
+
+
+    def test(self, path, batch_size=8):
+        test_batches = self.get_batches(path, shuffle=False, batch_size=batch_size, class_mode=None)
+        return test_batches, self.model.predict_generator(test_batches, test_batches.nb_sample)
 
