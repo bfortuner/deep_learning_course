@@ -1,5 +1,5 @@
 # Deep Learning Part 1
-Materials for Deep Learning Certificate taught by [Jeremy Howard](http://jhoward.fastmail.fm)
+Materials for Deep Learning Certificate created by [fast.ai](http://www.fast.ai/2016/10/08/curriculum)
 
 ## Links
 
