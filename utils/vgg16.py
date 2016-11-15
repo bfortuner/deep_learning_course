@@ -12,8 +12,15 @@ from keras.utils.data_utils import get_file
 from keras.models import Sequential
 from keras.layers.core import Flatten, Dense, Dropout, Lambda
 from keras.layers.convolutional import Convolution2D, MaxPooling2D, ZeroPadding2D
+from keras.layers.pooling import GlobalAveragePooling2D
 from keras.optimizers import SGD, RMSprop
 from keras.preprocessing import image
+
+
+vgg_mean = np.array([123.68, 116.779, 103.939], dtype=np.float32).reshape((3,1,1))
+def vgg_preprocess(x):
+    x = x - vgg_mean
+    return x[:, ::-1] # reverse axis rgb->bgr
 
 
 class Vgg16():
@@ -22,7 +29,6 @@ class Vgg16():
 
     def __init__(self):
         self.FILE_PATH = 'http://www.platform.ai/models/'
-        self.vgg_mean = np.array([123.68, 116.779, 103.939]).reshape((3,1,1))
         self.create()
         self.get_classes()
 
@@ -56,14 +62,10 @@ class Vgg16():
         model.add(Dropout(0.5))
 
 
-    def vgg_preprocess(self, x):
-        x = x - self.vgg_mean
-        return x[:, ::-1] # reverse axis bgr->rgb
-
 
     def create(self):
         model = self.model = Sequential()
-        model.add(Lambda(self.vgg_preprocess, input_shape=(3,224,224)))
+        model.add(Lambda(vgg_preprocess, input_shape=(3,224,224)))
 
         self.ConvBlock(2, 64)
         self.ConvBlock(2, 128)
@@ -85,14 +87,29 @@ class Vgg16():
                 class_mode=class_mode, shuffle=shuffle, batch_size=batch_size)
 
 
+    def ft(self, num):
+        model = self.model
+        model.pop()
+        for layer in model.layers: layer.trainable=False
+        model.add(Dense(num, activation='softmax'))
+        self.compile()
+
     def finetune(self, batches):
         model = self.model
         model.pop()
-        for layer in model.layers:
-            layer.trainable=False
-        model.add(Dense(batches.nb_class, activation='softmax', input_shape=(1000,)))
-        model.compile(optimizer=RMSprop(lr=0.1),
+        for layer in model.layers: layer.trainable=False
+        model.add(Dense(batches.nb_class, activation='softmax'))
+        self.compile()
+
+
+    def compile(self, lr=0.1):
+        self.model.compile(optimizer=RMSprop(lr=lr),
                 loss='categorical_crossentropy', metrics=['accuracy'])
+
+
+    def fit_data(self, trn, labels,  val, val_labels,  nb_epoch=1, batch_size=64):
+        self.model.fit(trn, labels, nb_epoch=nb_epoch,
+                validation_data=(val, val_labels), batch_size=batch_size)
 
 
     def fit(self, batches, val_batches, nb_epoch=1):

@@ -1,14 +1,26 @@
 from __future__ import division,print_function
+import math
+import cPickle as pickle
 import os, json
 from glob import glob
 import numpy as np
 from matplotlib import pyplot as plt
 
-from numpy.random import random, permutation
+import PIL
+from PIL import Image
+import cv2
+from numpy.random import random, permutation, randn, normal, uniform
 from scipy import misc, ndimage
 from scipy.ndimage.interpolation import zoom
+from scipy.ndimage import imread
+from sklearn.metrics import confusion_matrix
 import bcolz
 import itertools
+
+import theano
+from theano import tensor as T
+from theano.tensor.nnet import conv2d
+from theano.tensor.signal import pool
 
 import keras
 from keras import backend as K
@@ -17,14 +29,29 @@ from keras.models import Sequential
 from keras.layers import Input
 from keras.layers.core import Flatten, Dense, Dropout, Lambda
 from keras.layers.convolutional import Convolution2D, MaxPooling2D, ZeroPadding2D
+from keras.regularizers import l2, activity_l2, l1, activity_l1
 from keras.layers.normalization import BatchNormalization
-from keras.optimizers import SGD, RMSprop
+from keras.optimizers import SGD, RMSprop, Adam
 from keras.preprocessing import image
 from sklearn.preprocessing import OneHotEncoder
 
-from vgg16 import Vgg16
+from vgg16 import *
 np.set_printoptions(precision=4, linewidth=100)
 
+
+to_bw = np.array([0.299, 0.587, 0.114])
+def gray(img):
+    return np.rollaxis(img,0,3).dot(to_bw)
+def to_plot(img):
+    return np.rollaxis(img, 0, 3).astype(np.uint8)
+def plot(img):
+    plt.imshow(to_plot(img))
+
+
+def floor(x):
+    return int(math.floor(x))
+def ceil(x):
+    return int(math.ceil(x))
 
 def plots(ims, figsize=(12,6), rows=1, interp=False, titles=None):
     if type(ims[0]) is np.ndarray:
@@ -39,17 +66,18 @@ def plots(ims, figsize=(12,6), rows=1, interp=False, titles=None):
         plt.imshow(ims[i], interpolation=None if interp else 'none')
 
 
-def get_batches(dirname, gen=image.ImageDataGenerator(), shuffle=True, batch_size=4):
+def get_batches(dirname, gen=image.ImageDataGenerator(), shuffle=True, batch_size=4, class_mode='categorical'):
     return gen.flow_from_directory(dirname, target_size=(224,224),
-            class_mode='categorical', shuffle=shuffle, batch_size=batch_size)
+            class_mode=class_mode, shuffle=shuffle, batch_size=batch_size)
 
 
 def onehot(x):
     return np.array(OneHotEncoder().fit_transform(x.reshape(-1,1)).todense())
 
 
-def get_data(batches):
-    return np.concatenate([batches.next()[0] for i in range(batches.nb_sample // batches.batch_size)])
+def get_data(path):
+    batches = get_batches(path, shuffle=False, batch_size=1, class_mode=None)
+    return np.concatenate([batches.next() for i in range(batches.nb_sample)])
 
 
 def plot_confusion_matrix(cm, classes, normalize=False, title='Confusion matrix', cmap=plt.cm.Blues):
@@ -79,18 +107,43 @@ def plot_confusion_matrix(cm, classes, normalize=False, title='Confusion matrix'
 
 
 def save_array(fname, arr):
-    bcolz.carray(arr, rootdir=fname, mode='w')
+    c=bcolz.carray(arr, rootdir=fname, mode='w')
+    c.flush()
 
 
 def load_array(fname):
     return bcolz.open(fname)[:]
 
 
-def vgg_cats():
+def mk_size(img, r2c):
+    r,c,_ = img.shape
+    curr_r2c = r/c
+    new_r, new_c = r,c
+    if r2c>curr_r2c:
+        new_r = floor(c*r2c)
+    else:
+        new_c = floor(r/r2c)
+    arr = np.zeros((new_r, new_c, 3), dtype=np.float32)
+    r2=(new_r-r)//2
+    c2=(new_c-c)//2
+    arr[floor(r2):floor(r2)+r,floor(c2):floor(c2)+c] = img
+    return arr
+
+
+def mk_square(img):
+    x,y,_ = img.shape
+    maxs = max(img.shape[:2])
+    y2=(maxs-y)//2
+    x2=(maxs-x)//2
+    arr = np.zeros((maxs,maxs,3), dtype=np.float32)
+    arr[floor(x2):floor(x2)+x,floor(y2):floor(y2)+y] = img
+    return arr
+
+
+def vgg_ft(out_dim):
     vgg = Vgg16()
+    vgg.ft(out_dim)
     model = vgg.model
-    model.pop()
-    model.add(Dense(2, activation='softmax'))
     return model
 
 
